@@ -1,6 +1,8 @@
 import { AUTH_GOOGLE_CLIENT_ID, AUTH_GOOGLE_CLIENT_SECRET } from '$env/static/private';
+import { PrismaAdapter } from '@auth/prisma-adapter';
 import { SvelteKitAuth } from '@auth/sveltekit';
 import GoogleProvider from '@auth/sveltekit/providers/google';
+import { prisma } from '$lib/server/db';
 
 const GOOGLE_SCOPES = [
 	'openid',
@@ -23,5 +25,6 @@ export const { handle: authHandle } = SvelteKitAuth({
 				}
 			}
 		})
-	]
+	],
+	adapter: PrismaAdapter(prisma)
 });
