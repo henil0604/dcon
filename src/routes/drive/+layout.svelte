@@ -1,8 +1,7 @@
 <script lang="ts">
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import TopbarNewButton from '$lib/components/TopbarNewButton.svelte';
 	import AppLayout from '$lib/components/layout/AppLayout.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { Plus } from 'lucide-svelte';
 </script>
 
 <AppLayout>
@@ -17,7 +16,7 @@
 
 			<!-- tail -->
 			<div class="flex">
-				<Button class="h-fit p-2" size="sm"><Plus size={18} /></Button>
+				<TopbarNewButton />
 			</div>
 		</div>
 
