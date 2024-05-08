@@ -2,7 +2,7 @@
 	import { ROUTES } from '$lib/const';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { Button } from '$lib/components/ui/button';
-	import { Home, PanelLeft, Trash } from 'lucide-svelte';
+	import { Home, PanelLeft } from 'lucide-svelte';
 	import { page } from '$app/stores';
 
 	const links = [
