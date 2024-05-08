@@ -2,6 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { ROUTES } from '$lib/const';
 	import { signIn } from '@auth/sveltekit/client';
+	import FileWithLock from '$lib/components/svg/FileWithLock.svelte';
 </script>
 
 <div class="wrapper">
@@ -26,10 +27,12 @@
 		>
 	</div>
 	<!-- right hero -->
-	<div class="right"></div>
+	<div class="right">
+		<FileWithLock size={'400'} />
+	</div>
 </div>
 
-<style lang="scss">
+<style lang="scss" scoped>
 	.wrapper {
 		@apply container grid-cols-2;
 		display: grid;
@@ -53,6 +56,9 @@
 			.description {
 				padding-left: theme('padding.1');
 			}
+		}
+		.right {
+			@apply flex items-center justify-center;
 		}
 	}
 
