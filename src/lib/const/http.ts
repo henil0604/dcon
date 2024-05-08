@@ -1,0 +1,6 @@
+export const RESPONSE_CODES = {
+	UNKNOWN_ERROR: 'UNKNOWN_ERROR',
+	OK: 'OK',
+	NOT_FOUND: 'NOT_FOUND',
+	BAD_INPUT: 'BAD_INPUT'
+} as const;
