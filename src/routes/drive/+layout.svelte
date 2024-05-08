@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import AppLayout from '$lib/components/layout/AppLayout.svelte';
 	import { Button } from '$lib/components/ui/button';
