@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import { z } from 'zod';
 import { privateProcedure, t } from '$lib/server/trpc';
 import { getLocalUploadDirectoryPath } from '$lib/server/utils/getLocalUploadDirectoryPath';
-import { Drive } from '$lib/server/utils/drive';
+import { Drive, type CreateFileOptions } from '$lib/server/utils/drive';
 import { createResponse } from '$lib/server/utils/createResponse';
 import { RESPONSE_CODES } from '$lib/const/http';
+import store from '$lib/server/store';
 
 export const driveRouter = t.router({
 	upload: privateProcedure
@@ -37,17 +38,85 @@ export const driveRouter = t.router({
 				);
 			}
 
+			const handleOnChunking: CreateFileOptions['onChunking'] = async (data) => {
+				store.set(input.fileId, {
+					status: 'UPLOADING',
+					percentage: 0,
+					bytesUploaded: 0,
+					totalBytes: data.size,
+					totalChunks: data.totalChunks,
+					chunks: {}
+				});
+
+				for (const chunk of data.chunks) {
+					store.update(input.fileId, (store) => {
+						store.chunks[chunk.index] = {
+							status: 'WAITING',
+							index: chunk.index,
+							percentage: 0,
+							bytesUploaded: 0,
+							speed: 0,
+							size: chunk.size
+						};
+
+						return store;
+					});
+				}
+			};
+
+			const handleChunkEvent: CreateFileOptions['onChunkEvent'] = async (event) => {
+				// const hashId = `${input.fileId}:${event.chunkIndex}`;
+				if (event.event === 'START_UPLOADING') {
+					store.update(input.fileId, (store) => {
+						store.chunks[event.chunkIndex].status = 'UPLOADING';
+						return store;
+					});
+				}
+				if (event.event === 'END_UPLOADING') {
+					store.update(input.fileId, (store) => {
+						store.chunks[event.chunkIndex].status = 'DONE';
+						return store;
+					});
+				}
+			};
+
+			const handleFileUploadProgress: CreateFileOptions['onProgress'] = async (progress) => {
+				store.update(input.fileId, (store) => {
+					const deltaBytes =
+						progress.transferred - store.chunks[progress.chunk.index].bytesUploaded;
+
+					store.chunks[progress.chunk.index].percentage = progress.percentage;
+					store.chunks[progress.chunk.index].speed = progress.speed;
+					store.chunks[progress.chunk.index].bytesUploaded = progress.transferred;
+
+					store.bytesUploaded += deltaBytes;
+					store.percentage = (store.bytesUploaded / store.totalBytes) * 100;
+
+					return store;
+				});
+			};
+
 			const uploadResponse = await drive.createFile({
 				path: filePath,
 				name: input.fileId,
-				maxChunkSize: 5,
-				// TODO: connect with redis
-				onProgress: console.log
+				// maxChunkSize: 5,
+				onProgress: handleFileUploadProgress,
+				onChunking: handleOnChunking,
+				onChunkEvent: handleChunkEvent
 			});
 
 			if (uploadResponse.error || !uploadResponse.data) {
+				store.update(input.fileId, (store) => {
+					store.status = 'FAILED';
+					return store;
+				});
 				return createResponse(true, uploadResponse.code, uploadResponse.message);
 			}
+
+			store.update(input.fileId, (store) => {
+				store.status = 'DONE';
+				return store;
+			});
 
 			const fileDoc = await prisma.file.create({
 				data: {

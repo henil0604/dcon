@@ -16,7 +16,7 @@ export interface CreateRawFileOptions {
 	name: string;
 	parentDirectoryId?: string;
 	mimeType?: string;
-	onProgress?: (progress: progress_stream.Progress) => void;
+	onProgress?: (progress: progress_stream.Progress) => Promise<any> | any;
 }
 
 export interface ChunkEntity {
@@ -36,7 +36,19 @@ export interface CreateFileOptions {
 			chunk: ChunkEntity;
 			totalChunks: number;
 		}
-	) => void;
+	) => Promise<any> | any;
+	onChunking?: (data: {
+		totalChunks: number;
+		size: number;
+		chunks: ChunkEntity[];
+	}) => Promise<any> | any;
+	onChunkEvent?: (data: {
+		event: 'START_UPLOADING' | 'END_UPLOADING';
+		chunkIndex: number;
+		data?: {
+			[key: string]: any;
+		};
+	}) => Promise<any> | any;
 }
 
 export interface CreateDirectoryOptions {
@@ -100,8 +112,8 @@ export class Drive {
 			time: 100
 		});
 
-		progressStream.on('progress', function (progress) {
-			options.onProgress?.(progress);
+		progressStream.on('progress', async function (progress) {
+			await options.onProgress?.(progress);
 		});
 
 		const readStream = fileStream.pipe(progressStream);
@@ -142,9 +154,10 @@ export class Drive {
 			encoding: 'utf8'
 		});
 
-		options.maxChunkSize = options.maxChunkSize || 1024 * 1024 * 0.2;
+		options.maxChunkSize = options.maxChunkSize || 1024 * 1024 * 1; // 10 MB
 
 		const rawChunks = chunkString(fileData, options.maxChunkSize);
+
 		const chunks = await Promise.all(
 			rawChunks.map(async (chunk, index) => {
 				const id = crypto.randomUUID();
@@ -162,8 +175,19 @@ export class Drive {
 			})
 		);
 
+		await options.onChunking?.({
+			totalChunks: chunks.length,
+			size: fileData.length,
+			chunks: chunks
+		});
+
 		const promisePool = chunks.map((chunk) => {
 			return async () => {
+				await options.onChunkEvent?.({
+					chunkIndex: chunk.index,
+					event: 'START_UPLOADING'
+				});
+
 				const chunkUploadResponse = await this.createRawFile({
 					name: chunk.id,
 					path: chunk.path,
@@ -185,6 +209,11 @@ export class Drive {
 					};
 				}
 
+				await options.onChunkEvent?.({
+					chunkIndex: chunk.index,
+					event: 'END_UPLOADING'
+				});
+
 				return {
 					error: chunkUploadResponse.error,
 					code: chunkUploadResponse.code,
@@ -194,7 +223,7 @@ export class Drive {
 			};
 		});
 
-		const uploadResponse = await throttleAll(3, promisePool);
+		const uploadResponse = await throttleAll(1, promisePool);
 
 		for (const chunk of uploadResponse) {
 			await fs.promises.unlink(chunk.info.path);
