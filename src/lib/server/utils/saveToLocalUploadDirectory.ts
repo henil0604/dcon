@@ -1,13 +1,5 @@
-import { LOCAL_UPLOAD_DIRECTORY_NAME } from '$lib/const';
 import fs from 'node:fs';
-
-function getLocalUploadDirectoryPath() {
-	const path = `static/${LOCAL_UPLOAD_DIRECTORY_NAME}`;
-	if (fs.existsSync(path) === false) {
-		return fs.mkdirSync(path);
-	}
-	return path;
-}
+import { getLocalUploadDirectoryPath } from '$lib/server/utils/getLocalUploadDirectoryPath';
 
 export async function saveToLocalUploadDirectory(id: string, file: File) {
 	const path = `${getLocalUploadDirectoryPath()}/${id}`;
