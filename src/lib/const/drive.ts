@@ -1,0 +1,1 @@
+export const DRIVE_UPLOAD_DIRECTORY_NAME = '_DCON';
