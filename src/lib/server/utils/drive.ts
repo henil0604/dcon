@@ -15,6 +15,7 @@ import { Readable } from 'node:stream';
 export interface CreateRawFileOptions {
 	data: Uint8Array;
 	name: string;
+	driveId?: string;
 	parentDirectoryId?: string;
 	streamChunkSize?: number;
 	mimeType?: string;
@@ -31,6 +32,7 @@ export interface ChunkEntity {
 export interface CreateFileOptions {
 	path: string;
 	directoryName: string;
+	directoryId?: string;
 	maxChunkSize?: number;
 	onProgress?: (
 		progress: progress_stream.Progress & {
@@ -54,6 +56,7 @@ export interface CreateFileOptions {
 
 export interface CreateDirectoryOptions {
 	name: string;
+	id?: string;
 	parentDirectoryId?: string;
 }
 
@@ -93,6 +96,7 @@ export class Drive {
 	public async createDirectory(options: CreateDirectoryOptions) {
 		const createResponse = await this.drive!.files.create({
 			requestBody: {
+				id: options.id,
 				mimeType: 'application/vnd.google-apps.folder',
 				name: options.name,
 				parents: options.parentDirectoryId ? [options.parentDirectoryId] : []
@@ -134,6 +138,7 @@ export class Drive {
 
 		const uploadResponse = await this.drive!.files.create({
 			requestBody: {
+				id: options.driveId,
 				name: options.name,
 				mimeType: options.mimeType,
 				parents: options.parentDirectoryId ? [options.parentDirectoryId] : []
@@ -161,7 +166,8 @@ export class Drive {
 		const rootDirectoryId = await this.getRootDirectoryId();
 		const parentDirectoryId = await this.createDirectory({
 			name: options.directoryName,
-			parentDirectoryId: rootDirectoryId
+			parentDirectoryId: rootDirectoryId,
+			id: options.directoryId
 		});
 
 		const fileData = await fs.promises.readFile(options.path, {
@@ -174,7 +180,7 @@ export class Drive {
 
 		const chunks = await Promise.all(
 			rawChunks.map(async (chunk, index) => {
-				const id = crypto.randomUUID();
+				const id = (await this.generateId())!;
 
 				return {
 					index,
@@ -201,6 +207,7 @@ export class Drive {
 				const chunkUploadResponse = await this.createRawFile({
 					name: chunk.id,
 					data: chunk.data,
+					driveId: chunk.id,
 					parentDirectoryId: parentDirectoryId,
 					onProgress: (progress) => {
 						options.onProgress?.({
@@ -269,6 +276,18 @@ export class Drive {
 
 	public getDrive() {
 		return this.drive;
+	}
+
+	public async generateId(): Promise<string | null> {
+		const ids = await this.drive!.files.generateIds({
+			count: 1
+		});
+
+		if (!ids.data.ids) {
+			return null;
+		}
+
+		return ids.data.ids[0];
 	}
 
 	public static async getInstance(userId: string) {

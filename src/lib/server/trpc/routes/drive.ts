@@ -119,6 +119,7 @@ export const driveRouter = t.router({
 				path: filePath,
 				// name of the directory
 				directoryName: input.fileId,
+				directoryId: input.fileId,
 				onProgress: handleFileUploadProgress,
 				onChunking: handleOnChunking,
 				onChunkEvent: handleChunkEvent
@@ -180,7 +181,6 @@ export const driveRouter = t.router({
 				// create chunk entry in db
 				await prisma.fileChunk.create({
 					data: {
-						driveId: chunk.driveId,
 						id: chunk.id,
 						index: chunk.index,
 						size: chunk.size,

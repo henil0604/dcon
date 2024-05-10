@@ -89,8 +89,7 @@ model File {
 }
 
 model FileChunk {
-    id      String @id @default(cuid())
-    driveId String
+    id String @id @default(cuid())
 
     size  Int
     index Int
