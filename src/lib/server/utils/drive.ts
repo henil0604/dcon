@@ -1,5 +1,5 @@
 import { getGoogleAuth } from '$lib/server/utils/getGoogleAuth';
-import { google } from 'googleapis';
+import { connectors_v2, google } from 'googleapis';
 import { getUserRefreshToken } from '$lib/server/utils/getUserRefreshToken';
 import fs from 'node:fs';
 import progress_stream from 'progress-stream';
@@ -10,11 +10,13 @@ import { chunkString } from '$lib/utils/chunkString';
 import { saveToLocalUploadDirectory } from './saveToLocalUploadDirectory';
 import { throttleAll } from 'promise-throttle-all';
 import { ascii } from '$lib/utils/ascii';
+import { Readable } from 'node:stream';
 
 export interface CreateRawFileOptions {
-	path: string;
+	data: Uint8Array;
 	name: string;
 	parentDirectoryId?: string;
+	streamChunkSize?: number;
 	mimeType?: string;
 	onProgress?: (progress: progress_stream.Progress) => Promise<any> | any;
 }
@@ -23,13 +25,12 @@ export interface ChunkEntity {
 	id: string;
 	index: number;
 	size: number;
-	path: string;
 	data: Uint8Array;
 }
 
 export interface CreateFileOptions {
 	path: string;
-	name: string;
+	directoryName: string;
 	maxChunkSize?: number;
 	onProgress?: (
 		progress: progress_stream.Progress & {
@@ -104,11 +105,24 @@ export class Drive {
 		await this.init();
 
 		options.mimeType = options.mimeType || 'application/octet-stream';
-		const fileStream = fs.createReadStream(options.path);
-		const fileStat = fs.statSync(options.path);
+		options.streamChunkSize = options.streamChunkSize || 1024 * 1; // 1 KB
+
+		const readable = new Readable();
+		let offset = 0;
+
+		while (true) {
+			if (offset >= options.data.length) {
+				readable.push(null);
+				break;
+			}
+
+			const chunk = options.data.slice(offset, offset + options.streamChunkSize);
+			offset += options.streamChunkSize;
+			readable.push(chunk);
+		}
 
 		let progressStream = progress_stream({
-			length: fileStat.size,
+			length: options.data.length,
 			time: 100
 		});
 
@@ -116,7 +130,7 @@ export class Drive {
 			await options.onProgress?.(progress);
 		});
 
-		const readStream = fileStream.pipe(progressStream);
+		const readStream = readable.pipe(progressStream);
 
 		const uploadResponse = await this.drive!.files.create({
 			requestBody: {
@@ -146,7 +160,7 @@ export class Drive {
 	public async createFile(options: CreateFileOptions) {
 		const rootDirectoryId = await this.getRootDirectoryId();
 		const parentDirectoryId = await this.createDirectory({
-			name: options.name,
+			name: options.directoryName,
 			parentDirectoryId: rootDirectoryId
 		});
 
@@ -154,23 +168,19 @@ export class Drive {
 			encoding: 'utf8'
 		});
 
-		options.maxChunkSize = options.maxChunkSize || 1024 * 1024 * 1; // 10 MB
+		options.maxChunkSize = options.maxChunkSize || 1024 * 1024 * 10; // 10 MB
 
 		const rawChunks = chunkString(fileData, options.maxChunkSize);
 
 		const chunks = await Promise.all(
 			rawChunks.map(async (chunk, index) => {
 				const id = crypto.randomUUID();
-				const file = new File([chunk], id);
-
-				const path = await saveToLocalUploadDirectory(id, file);
 
 				return {
 					index,
 					data: ascii.encode(chunk),
 					size: chunk.length,
-					id,
-					path
+					id
 				};
 			})
 		);
@@ -190,7 +200,7 @@ export class Drive {
 
 				const chunkUploadResponse = await this.createRawFile({
 					name: chunk.id,
-					path: chunk.path,
+					data: chunk.data,
 					parentDirectoryId: parentDirectoryId,
 					onProgress: (progress) => {
 						options.onProgress?.({
@@ -223,15 +233,13 @@ export class Drive {
 			};
 		});
 
+		// TODO: use global promise pool instead of local
+		// ! due to pool being local, if uploaded multiple files at once, it will get rate limited by google drive
 		const uploadResponse = await throttleAll(1, promisePool);
-
-		for (const chunk of uploadResponse) {
-			await fs.promises.unlink(chunk.info.path);
-		}
 
 		return createResponse(false, RESPONSE_CODES.OK, 'Upload successful', {
 			driveFolderId: parentDirectoryId,
-			id: options.name,
+			id: options.directoryName,
 			chunks: uploadResponse.map((chunk) => ({
 				error: chunk.error,
 				code: chunk.code,

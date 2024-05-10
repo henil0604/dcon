@@ -5,7 +5,7 @@ import { getLocalUploadDirectoryPath } from '$lib/server/utils/getLocalUploadDir
 import { Drive, type CreateFileOptions } from '$lib/server/utils/drive';
 import { createResponse } from '$lib/server/utils/createResponse';
 import { RESPONSE_CODES } from '$lib/const/http';
-import store from '$lib/server/store';
+import { store } from '$lib/server/store';
 
 export const driveRouter = t.router({
 	upload: privateProcedure
@@ -17,19 +17,24 @@ export const driveRouter = t.router({
 					mimeType: z.string().optional().default('application/octet-stream')
 				}),
 				parentDirectoryId: z.string().optional()
+				// TODO: add maxChunkSize field
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const { session, prisma } = ctx;
 
+			// grab file path
 			const filePath = `${getLocalUploadDirectoryPath()}/${input.fileId}`;
 
+			// if file does not exist
 			if (fs.existsSync(filePath) === false) {
 				return createResponse(true, RESPONSE_CODES.NOT_FOUND, 'File does not exist');
 			}
 
+			// get drive instance
 			const drive = await Drive.getInstance(session.user.id!);
 
+			// if fails
 			if (!drive) {
 				return createResponse(
 					true,
@@ -38,9 +43,11 @@ export const driveRouter = t.router({
 				);
 			}
 
+			// function that will be invoked, when file will be chunked, that data will be shared with this function to initialize memory store
 			const handleOnChunking: CreateFileOptions['onChunking'] = async (data) => {
+				// creating main object in memory store
 				store.set(input.fileId, {
-					status: 'UPLOADING',
+					status: 'WAITING',
 					percentage: 0,
 					bytesUploaded: 0,
 					totalBytes: data.size,
@@ -48,7 +55,9 @@ export const driveRouter = t.router({
 					chunks: {}
 				});
 
+				// for every chunk
 				for (const chunk of data.chunks) {
+					// create object for that chunk
 					store.update(input.fileId, (store) => {
 						store.chunks[chunk.index] = {
 							status: 'WAITING',
@@ -64,70 +73,96 @@ export const driveRouter = t.router({
 				}
 			};
 
+			// function that will be invoked when chunk events happen, eg. when chunk starts or end uploading
 			const handleChunkEvent: CreateFileOptions['onChunkEvent'] = async (event) => {
-				// const hashId = `${input.fileId}:${event.chunkIndex}`;
 				if (event.event === 'START_UPLOADING') {
+					// updating chunk
 					store.update(input.fileId, (store) => {
+						// changing status of main object (in-case)
+						store.status = 'UPLOADING';
+						// changing status of chunk
 						store.chunks[event.chunkIndex].status = 'UPLOADING';
 						return store;
 					});
 				}
 				if (event.event === 'END_UPLOADING') {
 					store.update(input.fileId, (store) => {
+						// changing status of chunk
 						store.chunks[event.chunkIndex].status = 'DONE';
 						return store;
 					});
 				}
 			};
 
-			const handleFileUploadProgress: CreateFileOptions['onProgress'] = async (progress) => {
-				store.update(input.fileId, (store) => {
-					const deltaBytes =
-						progress.transferred - store.chunks[progress.chunk.index].bytesUploaded;
+			// this function will be invoked every time drive request reads from readable stream inside Drive.createRawFile function
+			// it will return progress event coming from `progress-stream` package
+			const handleFileUploadProgress: CreateFileOptions['onProgress'] = (progress) => {
+				// update chunk data
+				store.update(input.fileId, (data) => {
+					// update percentage, speed and bytesUploaded
+					data.chunks[progress.chunk.index].percentage = progress.percentage;
+					data.chunks[progress.chunk.index].speed = progress.speed;
+					data.chunks[progress.chunk.index].bytesUploaded = progress.transferred;
 
-					store.chunks[progress.chunk.index].percentage = progress.percentage;
-					store.chunks[progress.chunk.index].speed = progress.speed;
-					store.chunks[progress.chunk.index].bytesUploaded = progress.transferred;
+					// add uploaded bytes to main object's `bytesUploaded`
+					data.bytesUploaded += progress.delta;
+					// recalculate percentage of main object
+					data.percentage = (data.bytesUploaded / data.totalBytes) * 100;
 
-					store.bytesUploaded += deltaBytes;
-					store.percentage = (store.bytesUploaded / store.totalBytes) * 100;
-
-					return store;
+					return data;
 				});
 			};
 
+			// creating ile
 			const uploadResponse = await drive.createFile({
+				// path of file
 				path: filePath,
-				name: input.fileId,
-				// maxChunkSize: 5,
+				// name of the directory
+				directoryName: input.fileId,
 				onProgress: handleFileUploadProgress,
 				onChunking: handleOnChunking,
 				onChunkEvent: handleChunkEvent
 			});
 
+			// if any error
 			if (uploadResponse.error || !uploadResponse.data) {
 				store.update(input.fileId, (store) => {
+					// set status as failed
 					store.status = 'FAILED';
 					return store;
 				});
+				// delete key from memory store
+				store.del(input.fileId);
+				// delete the file, let user reupload if wants
+				await fs.promises.unlink(filePath);
+				// return response as error
 				return createResponse(true, uploadResponse.code, uploadResponse.message);
 			}
 
 			store.update(input.fileId, (store) => {
+				// set status as done
 				store.status = 'DONE';
 				return store;
 			});
 
+			// delete key from memory store
+			store.del(input.fileId);
+			// delete the file
+			await fs.promises.unlink(filePath);
+
+			// create file entry in db
 			const fileDoc = await prisma.file.create({
 				data: {
 					name: input.fileInfo.name,
 					mimeType: input.fileInfo.mimeType,
 					id: uploadResponse.data.id,
+					// link it to user
 					user: {
 						connect: {
 							email: session.user.email!
 						}
 					},
+					// if parent directory provided, link it
 					parentDirectory: input.parentDirectoryId
 						? {
 								connect: {
@@ -138,15 +173,18 @@ export const driveRouter = t.router({
 				}
 			});
 
+			// for every chunk
 			for (const chunk of uploadResponse.data.chunks) {
 				if (chunk.error || !chunk.driveId) continue;
 
+				// create chunk entry in db
 				await prisma.fileChunk.create({
 					data: {
 						driveId: chunk.driveId,
 						id: chunk.id,
 						index: chunk.index,
 						size: chunk.size,
+						// link it to the file
 						file: {
 							connect: {
 								id: fileDoc.id
