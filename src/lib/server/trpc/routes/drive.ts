@@ -2,11 +2,10 @@ import fs from 'node:fs';
 import { z } from 'zod';
 import { privateProcedure, t } from '$lib/server/trpc';
 import { getLocalUploadDirectoryPath } from '$lib/server/utils/getLocalUploadDirectoryPath';
-import { Drive, type CreateFileOptions } from '$lib/server/utils/drive';
+import { Drive, type CreateFileOptions } from '$lib/server/modules/drive';
 import { createResponse } from '$lib/server/utils/createResponse';
 import { RESPONSE_CODES } from '$lib/const/http';
 import { store } from '$lib/server/store';
-import { DEFAULT_MAX_CHUNK_SIZE } from '$lib/const/drive';
 
 export const driveRouter = t.router({
 	upload: privateProcedure

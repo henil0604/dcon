@@ -6,7 +6,7 @@ import { tryCatch } from '$lib/utils/tryCatch';
 import fs from 'node:fs';
 import { LOCAL_UPLOAD_DIRECTORY_NAME } from '$lib/const';
 import { saveToLocalUploadDirectory } from '$lib/server/utils/saveToLocalUploadDirectory';
-import { Drive } from '$lib/server/utils/drive';
+import { Drive } from '$lib/server/modules/drive';
 
 if (fs.existsSync(`static/${LOCAL_UPLOAD_DIRECTORY_NAME}`) === false) {
 	await fs.promises.mkdir(`static/${LOCAL_UPLOAD_DIRECTORY_NAME}`);

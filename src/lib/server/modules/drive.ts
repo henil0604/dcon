@@ -11,7 +11,7 @@ import {
 	DRIVE_UPLOAD_DIRECTORY_NAME
 } from '$lib/const/drive';
 import { chunkString } from '$lib/utils/chunkString';
-import { saveToLocalUploadDirectory } from './saveToLocalUploadDirectory';
+import { saveToLocalUploadDirectory } from '../utils/saveToLocalUploadDirectory';
 import { throttleAll } from 'promise-throttle-all';
 import { ascii } from '$lib/utils/ascii';
 import { Readable } from 'node:stream';
