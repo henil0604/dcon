@@ -6,6 +6,7 @@ import { Drive, type CreateFileOptions } from '$lib/server/modules/drive';
 import { createResponse } from '$lib/server/utils/createResponse';
 import { RESPONSE_CODES } from '$lib/const/http';
 import { store } from '$lib/server/store';
+import { MIN_CHUNK_SIZE } from '$lib/const/drive';
 
 export const driveRouter = t.router({
 	upload: privateProcedure
@@ -17,11 +18,7 @@ export const driveRouter = t.router({
 					mimeType: z.string().optional().default('application/octet-stream')
 				}),
 				parentDirectoryId: z.string().optional(),
-				maxChunkSize: z
-					.number()
-					.int()
-					.gte(1024 * 1024 * 0.1)
-					.optional()
+				maxChunkSize: z.number().int().gte(MIN_CHUNK_SIZE).optional()
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
