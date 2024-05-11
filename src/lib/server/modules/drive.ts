@@ -1,20 +1,21 @@
 import { getGoogleAuth } from '$lib/server/utils/getGoogleAuth';
-import { connectors_v2, google } from 'googleapis';
+import { google } from 'googleapis';
 import { getUserRefreshToken } from '$lib/server/utils/getUserRefreshToken';
 import fs from 'node:fs';
 import progress_stream from 'progress-stream';
 import { RESPONSE_CODES } from '$lib/const/http';
 import { createResponse } from '$lib/server/utils/createResponse';
 import {
+	CONCURRENT_CHUNK_UPLOADING,
 	DEFAULT_MAX_CHUNK_SIZE,
 	DEFAULT_STREAM_CHUNK_SIZE,
 	DRIVE_UPLOAD_DIRECTORY_NAME
 } from '$lib/const/drive';
 import { chunkString } from '$lib/utils/chunkString';
-import { saveToLocalUploadDirectory } from '../utils/saveToLocalUploadDirectory';
 import { throttleAll } from 'promise-throttle-all';
 import { ascii } from '$lib/utils/ascii';
 import { Readable } from 'node:stream';
+import { driveQueue } from '../global/queue';
 
 export interface CreateRawFileOptions {
 	data: Uint8Array;
@@ -24,6 +25,7 @@ export interface CreateRawFileOptions {
 	streamChunkSize?: number;
 	mimeType?: string;
 	onProgress?: (progress: progress_stream.Progress) => Promise<any> | any;
+	onStart?: () => Promise<any> | any;
 }
 
 export interface ChunkEntity {
@@ -75,9 +77,11 @@ export class Drive {
 	}
 
 	public async getRootDirectoryId() {
-		const list = await this.drive!.files.list({
-			q: `'root' in parents and name='${DRIVE_UPLOAD_DIRECTORY_NAME}' and trashed=false`
-		});
+		const list = (await driveQueue.add(() =>
+			this.drive!.files.list({
+				q: `'root' in parents and name='${DRIVE_UPLOAD_DIRECTORY_NAME}' and trashed=false`
+			})
+		))!;
 
 		if (!list.data.files || list.data.files?.length === 0) {
 			return await this.createDirectory({
@@ -98,14 +102,17 @@ export class Drive {
 	}
 
 	public async createDirectory(options: CreateDirectoryOptions) {
-		const createResponse = await this.drive!.files.create({
-			requestBody: {
-				id: options.id,
-				mimeType: 'application/vnd.google-apps.folder',
-				name: options.name,
-				parents: options.parentDirectoryId ? [options.parentDirectoryId] : []
-			}
-		});
+		const createResponse = (await driveQueue.add(() =>
+			this.drive!.files.create({
+				requestBody: {
+					id: options.id,
+					mimeType: 'application/vnd.google-apps.folder',
+					name: options.name,
+					parents: options.parentDirectoryId ? [options.parentDirectoryId] : []
+				}
+			})
+		))!;
+
 		return createResponse.data.id!;
 	}
 
@@ -140,18 +147,21 @@ export class Drive {
 
 		const readStream = readable.pipe(progressStream);
 
-		const uploadResponse = await this.drive!.files.create({
-			requestBody: {
-				id: options.driveId,
-				name: options.name,
-				mimeType: options.mimeType,
-				parents: options.parentDirectoryId ? [options.parentDirectoryId] : []
-			},
-			media: {
-				body: readStream,
-				mimeType: options.mimeType
-			}
-		});
+		const uploadResponse = (await driveQueue.add(async () => {
+			await options.onStart?.();
+			return this.drive!.files.create({
+				requestBody: {
+					id: options.driveId,
+					name: options.name,
+					mimeType: options.mimeType,
+					parents: options.parentDirectoryId ? [options.parentDirectoryId] : []
+				},
+				media: {
+					body: readStream,
+					mimeType: options.mimeType
+				}
+			});
+		}))!;
 
 		if (uploadResponse.status !== 200) {
 			return createResponse(true, RESPONSE_CODES.UPLOAD_FAILED, 'API returned non 200 code', {
@@ -203,11 +213,6 @@ export class Drive {
 
 		const promisePool = chunks.map((chunk) => {
 			return async () => {
-				await options.onChunkEvent?.({
-					chunkIndex: chunk.index,
-					event: 'START_UPLOADING'
-				});
-
 				const chunkUploadResponse = await this.createRawFile({
 					name: chunk.id,
 					data: chunk.data,
@@ -218,6 +223,12 @@ export class Drive {
 							...progress,
 							chunk,
 							totalChunks: chunks.length
+						});
+					},
+					onStart: async () => {
+						await options.onChunkEvent?.({
+							chunkIndex: chunk.index,
+							event: 'START_UPLOADING'
 						});
 					}
 				});
@@ -244,9 +255,7 @@ export class Drive {
 			};
 		});
 
-		// TODO: use global promise pool instead of local
-		// ! due to pool being local, if uploaded multiple files at once, it will get rate limited by google drive
-		const uploadResponse = await throttleAll(1, promisePool);
+		const uploadResponse = await throttleAll(CONCURRENT_CHUNK_UPLOADING, promisePool);
 
 		return createResponse(false, RESPONSE_CODES.OK, 'Upload successful', {
 			driveFolderId: parentDirectoryId,
@@ -283,11 +292,13 @@ export class Drive {
 	}
 
 	public async generateId(): Promise<string | null> {
-		const ids = await this.drive!.files.generateIds({
-			count: 1
-		});
+		const ids = await driveQueue.add(() =>
+			this.drive!.files.generateIds({
+				count: 1
+			})
+		);
 
-		if (!ids.data.ids) {
+		if (ids === undefined || !ids.data.ids) {
 			return null;
 		}
 

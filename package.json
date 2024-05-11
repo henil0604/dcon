@@ -45,6 +45,7 @@
     "googleapis": "^137.1.0",
     "lucide-svelte": "^0.378.0",
     "mime-types": "^2.1.35",
+    "p-queue": "^8.0.1",
     "progress-stream": "^2.0.0",
     "promise-throttle-all": "^1.1.1",
     "tailwind-merge": "^2.3.0",
