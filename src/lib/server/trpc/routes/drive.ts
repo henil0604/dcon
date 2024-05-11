@@ -5,7 +5,7 @@ import { getLocalUploadDirectoryPath } from '$lib/server/utils/getLocalUploadDir
 import { Drive, type CreateFileOptions } from '$lib/server/modules/drive';
 import { createResponse } from '$lib/server/utils/createResponse';
 import { RESPONSE_CODES } from '$lib/const/http';
-import { store } from '$lib/server/store';
+import { store } from '$lib/server/global/store';
 import { MIN_CHUNK_SIZE } from '$lib/const/drive';
 
 export const driveRouter = t.router({

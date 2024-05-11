@@ -1,6 +1,5 @@
-// src/routes/custom-event/+server.js
 import { RESPONSE_CODES } from '$lib/const/http.js';
-import { store } from '$lib/server/store';
+import { store } from '$lib/server/global/store';
 import { createResponse } from '$lib/server/utils/createResponse.js';
 import { json } from '@sveltejs/kit';
 
