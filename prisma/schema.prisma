@@ -58,13 +58,13 @@ model Directory {
     id   String @id @default(cuid())
     name String
 
-    parentDirectory   Directory? @relation("childrenDirectories", fields: [parentDirectoryId], references: [id])
+    parentDirectory   Directory? @relation("childrenDirectories", fields: [parentDirectoryId], references: [id], onDelete: Cascade)
     parentDirectoryId String?
 
     childrenDirectories Directory[] @relation("childrenDirectories")
     childrenFiles       File[]      @relation("childrenFiles")
 
-    user   User   @relation(fields: [userId], references: [id])
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId String
 
     createdAt DateTime @default(now())
@@ -78,10 +78,10 @@ model File {
     mimeType String
     chunks   FileChunk[]
 
-    parentDirectory   Directory? @relation("childrenFiles", fields: [parentDirectoryId], references: [id])
+    parentDirectory   Directory? @relation("childrenFiles", fields: [parentDirectoryId], references: [id], onDelete: Cascade)
     parentDirectoryId String?
 
-    user   User   @relation(fields: [userId], references: [id])
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId String
 
     createdAt DateTime @default(now())
@@ -94,7 +94,7 @@ model FileChunk {
     size  Int
     index Int
 
-    file   File   @relation(fields: [fileId], references: [id])
+    file   File   @relation(fields: [fileId], references: [id], onDelete: Cascade)
     fileId String
 
     createdAt DateTime @default(now())
