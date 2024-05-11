@@ -5,7 +5,11 @@ import fs from 'node:fs';
 import progress_stream from 'progress-stream';
 import { RESPONSE_CODES } from '$lib/const/http';
 import { createResponse } from '$lib/server/utils/createResponse';
-import { DRIVE_UPLOAD_DIRECTORY_NAME } from '$lib/const/drive';
+import {
+	DEFAULT_MAX_CHUNK_SIZE,
+	DEFAULT_STREAM_CHUNK_SIZE,
+	DRIVE_UPLOAD_DIRECTORY_NAME
+} from '$lib/const/drive';
 import { chunkString } from '$lib/utils/chunkString';
 import { saveToLocalUploadDirectory } from './saveToLocalUploadDirectory';
 import { throttleAll } from 'promise-throttle-all';
@@ -109,7 +113,7 @@ export class Drive {
 		await this.init();
 
 		options.mimeType = options.mimeType || 'application/octet-stream';
-		options.streamChunkSize = options.streamChunkSize || 1024 * 1; // 1 KB
+		options.streamChunkSize = options.streamChunkSize || DEFAULT_STREAM_CHUNK_SIZE;
 
 		const readable = new Readable();
 		let offset = 0;
@@ -174,7 +178,7 @@ export class Drive {
 			encoding: 'utf8'
 		});
 
-		options.maxChunkSize = options.maxChunkSize || 1024 * 1024 * 10; // 10 MB
+		options.maxChunkSize = options.maxChunkSize || DEFAULT_MAX_CHUNK_SIZE;
 
 		const rawChunks = chunkString(fileData, options.maxChunkSize);
 
