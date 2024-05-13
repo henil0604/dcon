@@ -1,6 +1,6 @@
 import { RESPONSE_CODES } from '$lib/const/http';
 
-export interface ServerResponse<Data> {
+export interface DConResponse<Data> {
 	error: boolean;
 	code: keyof typeof RESPONSE_CODES;
 	message?: string;

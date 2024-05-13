@@ -1,6 +1,6 @@
 import { RESPONSE_CODES } from '$lib/const/http.js';
 import { store } from '$lib/server/global/store';
-import { createResponse } from '$lib/server/utils/createResponse.js';
+import { createResponse } from '$lib/utils/createResponse';
 import { json } from '@sveltejs/kit';
 
 const encoder = new TextEncoder();

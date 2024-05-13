@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { privateProcedure, t } from '$lib/server/trpc';
 import { getLocalUploadDirectoryPath } from '$lib/server/utils/getLocalUploadDirectoryPath';
 import { Drive, type CreateFileOptions } from '$lib/server/modules/drive';
-import { createResponse } from '$lib/server/utils/createResponse';
+import { createResponse } from '$lib/utils/createResponse';
 import { RESPONSE_CODES } from '$lib/const/http';
 import { store } from '$lib/server/global/store';
 import { MIN_CHUNK_SIZE } from '$lib/const/drive';

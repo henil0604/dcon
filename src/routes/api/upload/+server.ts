@@ -1,5 +1,5 @@
 import { RESPONSE_CODES } from '$lib/const/http';
-import { createResponse } from '$lib/server/utils/createResponse';
+import { createResponse } from '$lib/utils/createResponse';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { tryCatch } from '$lib/utils/tryCatch';

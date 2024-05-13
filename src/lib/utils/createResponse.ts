@@ -1,8 +1,8 @@
-import type { ServerResponse } from '$lib/types';
+import type { DConResponse } from '$lib/types';
 
 export function createResponse<Data>(
-	error: ServerResponse<Data>['error'],
-	code: ServerResponse<Data>['code'],
+	error: DConResponse<Data>['error'],
+	code: DConResponse<Data>['code'],
 	message?: string,
 	data?: Data
 ) {

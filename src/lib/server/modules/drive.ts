@@ -4,7 +4,7 @@ import { getUserRefreshToken } from '$lib/server/utils/getUserRefreshToken';
 import fs from 'node:fs';
 import progress_stream from 'progress-stream';
 import { RESPONSE_CODES } from '$lib/const/http';
-import { createResponse } from '$lib/server/utils/createResponse';
+import { createResponse } from '$lib/utils/createResponse';
 import {
 	CONCURRENT_CHUNK_UPLOADING,
 	DEFAULT_MAX_CHUNK_SIZE,
