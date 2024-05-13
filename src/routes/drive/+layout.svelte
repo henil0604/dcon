@@ -31,5 +31,6 @@
 		display: flex;
 		flex-direction: column;
 		padding: theme('padding.6') theme('padding.6');
+		flex-grow: 1;
 	}
 </style>
