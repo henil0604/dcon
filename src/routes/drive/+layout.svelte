@@ -1,8 +1,11 @@
 <script lang="ts">
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import TopbarNewButton from '$lib/components/TopbarNewButton.svelte';
+	import UploadingFileProgressDrawer from '$lib/components/UploadingFileProgressDrawer.svelte';
 	import AppLayout from '$lib/components/layout/AppLayout.svelte';
 </script>
+
+<UploadingFileProgressDrawer />
 
 <AppLayout>
 	<!-- body -->
